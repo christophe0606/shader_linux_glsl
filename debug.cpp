@@ -4,9 +4,11 @@
 #include <fstream>
 #include <string>
 
-std::string readShaderFile(const std::string& filename) {
+std::string readShaderFile(const std::string &filename)
+{
     std::ifstream file(filename);
-    if (!file.is_open()) {
+    if (!file.is_open())
+    {
         std::cerr << "Error opening shader file: " << filename << std::endl;
         return "";
     }
@@ -15,12 +17,13 @@ std::string readShaderFile(const std::string& filename) {
     return content;
 }
 
-GLuint createShaderProgram(const char* vertexPath, const char* fragmentPath) {
+GLuint createShaderProgram(const char *vertexPath, const char *fragmentPath)
+{
     std::string vertexCode = readShaderFile(vertexPath);
     std::string fragmentCode = readShaderFile(fragmentPath);
 
-    const char* vShaderCode = vertexCode.c_str();
-    const char* fShaderCode = fragmentCode.c_str();
+    const char *vShaderCode = vertexCode.c_str();
+    const char *fShaderCode = fragmentCode.c_str();
 
     GLuint vertex, fragment;
     vertex = glCreateShader(GL_VERTEX_SHADER);
@@ -29,19 +32,20 @@ GLuint createShaderProgram(const char* vertexPath, const char* fragmentPath) {
 
     GLint success;
     glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
-    if (!success) {
+    if (!success)
+    {
         char infoLog[512];
         glGetShaderInfoLog(vertex, 512, nullptr, infoLog);
         std::cerr << "Error compiling vertex shader: " << infoLog << std::endl;
         return 0;
     }
 
-
     fragment = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragment, 1, &fShaderCode, nullptr);
     glCompileShader(fragment);
     glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
-    if (!success) {
+    if (!success)
+    {
         char infoLog[512];
         glGetShaderInfoLog(fragment, 512, nullptr, infoLog);
         std::cerr << "Error compiling fragment shader: " << infoLog << std::endl;
@@ -53,11 +57,12 @@ GLuint createShaderProgram(const char* vertexPath, const char* fragmentPath) {
     glAttachShader(shaderProgram, fragment);
     glLinkProgram(shaderProgram);
     glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
+    if (!success)
+    {
         char infoLog[512];
         glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
         std::cerr << "Error linking shader program: " << infoLog << std::endl;
-        return 0;   
+        return 0;
     }
 
     glDeleteShader(vertex);
@@ -68,7 +73,8 @@ GLuint createShaderProgram(const char* vertexPath, const char* fragmentPath) {
 
 int main()
 {
-    if (!glfwInit()) {
+    if (!glfwInit())
+    {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return -1;
     }
@@ -77,15 +83,18 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Shader Viewer", nullptr, nullptr);
-    if (!window) {
+    GLFWwindow *window = glfwCreateWindow(800, 600, "Shader Viewer", nullptr, nullptr);
+    if (!window)
+    {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return -1;
     }
-    
+
     glfwMakeContextCurrent(window);
-    if (glewInit() != GLEW_OK) {
+    glfwSwapInterval(1);
+    if (glewInit() != GLEW_OK)
+    {
         std::cerr << "Failed to initialize GLEW" << std::endl;
         glfwDestroyWindow(window);
         glfwTerminate();
@@ -97,23 +106,24 @@ int main()
     glViewport(0, 0, width, height);
 
     GLuint shaderProgram = createShaderProgram("vertex_shader.glsl", "fragment_shader.glsl");
-    if (shaderProgram == 0) {
+    if (shaderProgram == 0)
+    {
         glfwDestroyWindow(window);
         glfwTerminate();
         return -1;
     }
 
+    GLint uColorLoc = glGetUniformLocation(shaderProgram, "uColor");
+
     float vertices[] = {
         // positions
         -1.0f, -1.0f, 0.0f,
-         1.0f, -1.0f, 0.0f,
-         1.0f,  1.0f, 0.0f,
-         -1.0f,  1.0f, 0.0f
-    };
+        1.0f, -1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f,
+        -1.0f, 1.0f, 0.0f};
     unsigned int indices[] = {
         0, 1, 2,
-        2,3,0
-    };
+        2, 3, 0};
 
     GLuint VBO, VAO, EBO;
     glGenVertexArrays(1, &VAO);
@@ -125,14 +135,31 @@ int main()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
 
-    while (!glfwWindowShouldClose(window)) {
+    float c = 0.0f;
+    float dc = 0.1;
+    double last = glfwGetTime();
+
+    while (!glfwWindowShouldClose(window))
+    {
+        double now = glfwGetTime();
+        double dt = now - last;
+
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(shaderProgram);
+
+        glUniform3f(uColorLoc, 0.0f, c, 0.0f); // sets uColor = (r,g,b)
+        if (dt > 0.1) // update color every 0.1 seconds
+        {
+            c += dc;
+            if (c > 1.0f || c < 0.0f)
+                dc = -dc; // reverse direction
+            last = now;
+        }
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
@@ -147,6 +174,6 @@ int main()
     glDeleteProgram(shaderProgram);
     glfwDestroyWindow(window);
     glfwTerminate();
-    
+
     return 0;
 }
