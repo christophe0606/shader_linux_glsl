@@ -1,308 +1,63 @@
-#include "video.h"
+/*
 
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <signal.h>
-#include <cstdlib>
-#include <cstring>
+Copyright 2023 by Christophe Favergeon.
+All rights reserved.
 
-std::string readShaderFile(const std::string &filename)
+https://www.favergeon.info/arts/2023/02/11/hyperbolic.html
+
+*/
+
+#include "hyperbolic.h"
+#include <cmath>
+
+vec3 hcross(const vec3 &u, const vec3 &v)
 {
-    std::ifstream file(filename);
-    if (!file.is_open())
-    {
-        std::cerr << "Error opening shader file: " << filename << std::endl;
-        return "";
-    }
-    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    file.close();
-    return content;
+    return (vec3{v.z * u.y - v.y * u.z,
+                 -v.z * u.x + v.x * u.z,
+                 -(v.y * u.x - v.x * u.y)});
 }
 
-GLuint createShaderProgram(const char *vertexPath, const char *fragmentPath)
+double hdot(const vec3 &u, const vec3 &v)
 {
-    std::string vertexCode = readShaderFile(vertexPath);
-    std::string fragmentCode = readShaderFile(fragmentPath);
-
-    const char *vShaderCode = vertexCode.c_str();
-    const char *fShaderCode = fragmentCode.c_str();
-
-    GLuint vertex, fragment;
-    vertex = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex, 1, &vShaderCode, nullptr);
-    glCompileShader(vertex);
-
-    GLint success;
-    glGetShaderiv(vertex, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
-        char infoLog[512];
-        glGetShaderInfoLog(vertex, 512, nullptr, infoLog);
-        std::cerr << "Error compiling vertex shader: " << infoLog << std::endl;
-        return 0;
-    }
-
-    fragment = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment, 1, &fShaderCode, nullptr);
-    glCompileShader(fragment);
-    glGetShaderiv(fragment, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
-        char infoLog[512];
-        glGetShaderInfoLog(fragment, 512, nullptr, infoLog);
-        std::cerr << "Error compiling fragment shader: " << infoLog << std::endl;
-        return 0;
-    }
-
-    GLuint shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertex);
-    glAttachShader(shaderProgram, fragment);
-    glLinkProgram(shaderProgram);
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success)
-    {
-        char infoLog[512];
-        glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
-        std::cerr << "Error linking shader program: " << infoLog << std::endl;
-        return 0;
-    }
-
-    glDeleteShader(vertex);
-    glDeleteShader(fragment);
-
-    return shaderProgram;
+    return (u.x * v.x + u.y * v.y - u.z * v.z);
 }
 
-GLuint mk_texture(int width, int height)
+void get_angles(int p, int q, int r, double &alpha, double &beta, double &gamma)
 {
-    GLuint tex = 0;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-
-    // For raw pixel buffers, nearest avoids filtering blur:
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    // Clamp (or use GL_REPEAT if you want wraparound)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-    // If your rows aren’t 4-byte aligned (common with 3-channel RGB),
-    // set unpack alignment to 1 to avoid row padding issues:
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    // Allocate storage once; no data yet. Replace width/height.
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0,
-                 GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-    return tex;
+    alpha = M_PI / p;
+    beta = M_PI / q;
+    gamma = M_PI / r;
 }
 
-void gl_error_callback(int c, const char *d)
+vec3 operator-(const vec3 &v)
 {
-    fprintf(stderr, "GLFW error %d: %s\n", c, d);
+    return (vec3{-v.x, -v.y, -v.z});
 }
 
-static volatile sig_atomic_t g_stop = 0;
-
-void on_sigint(int sig)
+void compute_triangle(int p, int q, int r, vec3 &n1, vec3 &n2, vec3 &n3)
 {
-    (void)sig;
-    g_stop = 1;
-}
-
-void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
-{
-    if (action == GLFW_PRESS)
+    double alpha, beta, gamma;
+    if (1.0 / p + 1.0 / q + 1.0 / r >= 1.0)
     {
-        if (key == GLFW_KEY_ESCAPE)
-        {
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
-        }
+        p = 2;
+        q = 3;
+        r = 7;
     }
-}
+    get_angles(p, q, r, alpha, beta, gamma);
 
-int width, height;
+    double a = acosh((cos(gamma) * cos(beta) + cos(alpha))/(sin(gamma) * sin(beta)));
+    double b = acosh((cos(gamma) * cos(alpha) + cos(beta))/(sin(gamma) * sin(alpha)));
+    double c = acosh((cos(alpha) * cos(beta) + cos(gamma))/(sin(alpha) * sin(beta)));
+        
+    vec3 p0{0.0,0.0,1.0};
+    vec3 p1{0.0,sinh(c),cosh(c)};
 
-int main(int argc, char **argv)
-{
-    signal(SIGINT, on_sigint);
+    double u=cosh(c) / tanh(a) - cosh(b) / sinh(a);
+    double v=cosh(c);
+    vec3 p2{sqrt(v*v-u*u-1),u,v};
 
-    const char *dev_name = (argc > 1) ? argv[1] : "/dev/video5";
-    int video_width = (argc > 2) ? atoi(argv[2]) : 640;
-    int video_height = (argc > 3) ? atoi(argv[3]) : 480;
+    n1 = -hcross(p0, p1);
+    n2 = -hcross(p1, p2);
+    n3 = -hcross(p2, p0);
 
-    enum v4l2_buf_type type;
-
-    size_t rgb_size = (size_t)video_width * video_height * 3;
-    unsigned char *rgb = (unsigned char *)malloc(rgb_size);
-
-    if (!rgb)
-    {
-        fprintf(stderr, "malloc rgb failed\n");
-        return 1;
-    }
-    memset(rgb, 0, rgb_size);
-
-    int err = init_video(dev_name, video_width, video_height, type);
-    if (err != 0)
-        return err;
-
-    
-
-    
-    glfwSetErrorCallback(gl_error_callback);
-
-    if (!glfwInit())
-    {
-        std::cerr << "Failed to initialize GLFW" << std::endl;
-        return -1;
-    }
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    GLFWmonitor *monitor = glfwGetPrimaryMonitor();
-    const GLFWvidmode *mode = glfwGetVideoMode(monitor);
-
-    GLFWwindow *window = glfwCreateWindow(mode->width, mode->height, "Fullscreen Example", monitor, NULL);
-    if (!window)
-    {
-        std::cerr << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
-    if (glewInit() != GLEW_OK)
-    {
-        std::cerr << "Failed to initialize GLEW" << std::endl;
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    // Set key callback
-    glfwSetKeyCallback(window, key_callback);
-
-    glfwGetFramebufferSize(window, &width, &height);
-    glViewport(0, 0, width, height);
-
-    glfwSetFramebufferSizeCallback(window, [](GLFWwindow *, int w, int h)
-                                   { glViewport(0, 0, w, h); 
-                                width = w; height = h; });
-
-    GLuint shaderProgram = createShaderProgram("vertex_shader.glsl", "fragment_shader.glsl");
-    if (shaderProgram == 0)
-    {
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return -1;
-    }
-
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-
-    GLuint tex = mk_texture(video_width, video_height);
-
-    GLint uColorLoc = glGetUniformLocation(shaderProgram, "uColor");
-    GLint uResolutionLoc =  glGetUniformLocation(shaderProgram, "uResolution");
-    GLint uVideoHeightLoc = glGetUniformLocation(shaderProgram, "uVideoHeight");
-
-    float vertices[] = {
-        // positions
-        -1.0f, -1.0f, 0.0f,
-        1.0f, -1.0f, 0.0f,
-        1.0f, 1.0f, 0.0f,
-        -1.0f, 1.0f, 0.0f};
-    unsigned int indices[] = {
-        0, 1, 2,
-        2, 3, 0};
-
-    GLuint VBO, VAO, EBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(0);
-    glBindVertexArray(0);
-
-    float c = 0.0f;
-    float dc = 0.1;
-    double last = glfwGetTime();
-
-    while (!glfwWindowShouldClose(window) && !g_stop)
-    {
-        double now = glfwGetTime();
-        double dt = now - last;
-
-        err = try_get_buffer(rgb, video_width, video_height);
-        if (err != 0)
-        {
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
-            continue;
-        }
-
-
-
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // Update texture if the buffer changed (fast path: glTexSubImage2D)
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // keep safe
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, video_width, video_height,
-                        GL_RGB, GL_UNSIGNED_BYTE, rgb);
-
-        // Bind texture unit 0 and set the sampler uniform
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, tex);
-
-        glUseProgram(shaderProgram);
-
-        glUniform1i(glGetUniformLocation(shaderProgram, "uTex"), 0);
-        glUniform3f(uColorLoc, 0.0f, c, 0.0f); // sets uColor = (r,g,b)
-
-        glUniform2f(uResolutionLoc, (float)width, (float)height);    GLint uVideoWidthLoc = glGetUniformLocation(shaderProgram, "uVideoWidth");
-
-        glUniform1f(uVideoWidthLoc, (float)video_width);
-        glUniform1f(uVideoHeightLoc, (float)video_height);
-        if (dt > 0.1) // update color every 0.1 seconds
-        {
-            c += dc;
-            if (c > 1.0f || c < 0.0f)
-                dc = -dc; // reverse direction
-            last = now;
-        }
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
-
-    stop_video(type);
-
-
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
-    glDeleteProgram(shaderProgram);
-    glfwDestroyWindow(window);
-    glfwTerminate();
-    
-
-    free(rgb);
-
-    return 0;
 }
