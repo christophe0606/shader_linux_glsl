@@ -10,8 +10,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
-add_executable(hyperbolic main.cpp video.cpp hyperbolic.cpp)
+add_executable(hyperbolic main.cpp video.cpp hyperbolic.cpp tools.cpp)
 add_executable(debug debug.cpp hyperbolic.cpp)
+
+add_subdirectory(../c_mcp c_mpc_build)
+
+target_link_libraries(hyperbolic PUBLIC CMCP)
 
 target_compile_options(hyperbolic PRIVATE
   $<$<CONFIG:RelWithDebInfo>:

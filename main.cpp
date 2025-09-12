@@ -10,6 +10,15 @@
 #include <cstring>
 #include "hyperbolic.h"
 
+extern "C" {
+#include "cJSON.h"
+#include "config.h"
+#include "http.h"
+#include "stdio_transport.h"
+}
+
+#include "tools.h"
+
 std::string readShaderFile(const std::string &filename)
 {
     std::ifstream file(filename);
@@ -136,6 +145,22 @@ int main(int argc, char **argv)
     int video_width = (argc > 2) ? atoi(argv[2]) : 640;
     int video_height = (argc > 3) ? atoi(argv[3]) : 480;
 
+    define_tools();
+
+    int err=0;
+#if defined(MCP_STDIO)
+    err=init_stdio();
+#else
+    err=init_http();
+#endif
+
+   if (err != 0)
+   {
+         fprintf(stderr, "Failed to initialize MCP client\n");
+         return 1;
+   }
+
+
     enum v4l2_buf_type type;
 
     size_t rgb_size = (size_t)video_width * video_height * 3;
@@ -148,7 +173,7 @@ int main(int argc, char **argv)
     }
     memset(rgb, 0, rgb_size);
 
-    int err = init_video(dev_name, video_width, video_height, type);
+    err = init_video(dev_name, video_width, video_height, type);
     if (err != 0)
         return err;
 
@@ -218,6 +243,7 @@ int main(int argc, char **argv)
     GLint uN3Loc = glGetUniformLocation(shaderProgram, "uN3");
     GLint uAALoc = glGetUniformLocation(shaderProgram, "uAA");
     GLint uTextureZoomLoc = glGetUniformLocation(shaderProgram, "uTextureZoom");
+    GLint uEdgeColorLoc = glGetUniformLocation(shaderProgram, "uEdgeColor");
 
     vec3 n1, n2, n3;
     float zoom = 1.0f;
@@ -268,6 +294,12 @@ int main(int argc, char **argv)
             continue;
         }
 
+#if defined(MCP_STDIO)
+        process_stdio();
+#else
+        process_http();
+#endif
+
 
 
         glClear(GL_COLOR_BUFFER_BIT);
@@ -298,7 +330,7 @@ int main(int argc, char **argv)
         glUniform1i(uAALoc, 4);
         glUniform1f(uTextureZoomLoc, (float)zoom);
 
-
+        glUniform3f(uEdgeColorLoc, (float)edgeColor.x, (float)edgeColor.y, (float)edgeColor.z);
         /*
         if (dt > 0.1) // update color every 0.1 seconds
         {
@@ -317,6 +349,12 @@ int main(int argc, char **argv)
     }
 
     stop_video(type);
+
+#if defined(MCP_STDIO)
+    end_stdio();
+#else
+    end_http();
+#endif
 
 
     glDeleteVertexArrays(1, &VAO);

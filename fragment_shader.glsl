@@ -15,7 +15,6 @@ const int COLOR_MODULO=2;
 const vec2 moebiusTranslation = vec2(0,0);
 const float moebiusAngle = 0.0;
 const vec4 backgroundColor = vec4(0.0,0.0,0.0,1.0);
-const vec4 edgeColor = vec4(1.0,0,0,1.0);
 const vec4 tileAColor = vec4(1.0,0.0,0.0,1.0);
 const vec4 tileBColor = vec4(0.0,0.0,1.0,1.0);
 const float edgeWidth = 0.01;
@@ -37,6 +36,8 @@ uniform vec3 uN2;
 uniform vec3 uN3;
 uniform int uAA; // anti aliasing
 uniform float uTextureZoom;
+
+uniform vec3 uEdgeColor;
 
 float hdot(const vec3 a,const vec3 b)
 {
@@ -268,7 +269,7 @@ void main()
             }
             else if ((abs(d.y) <= edgeWidth))
             {
-                total += edgeColor;
+                total += vec4(uEdgeColor,1.0);
             }
             else
             { 
