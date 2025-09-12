@@ -220,8 +220,8 @@ int main(int argc, char **argv)
     GLint uAALoc = glGetUniformLocation(shaderProgram, "uAA");
 
     vec3 n1, n2, n3;
-    //compute_triangle(2, 4, 7, n1, n2, n3);
-    compute_triangle(4,4,4, n1, n2, n3);
+    compute_triangle(2,4,7, n1, n2, n3);
+    //compute_triangle(4,4,4, n1, n2, n3);
 
     float vertices[] = {
         // positions

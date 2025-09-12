@@ -39,9 +39,9 @@ void compute_triangle(int p, int q, int r, vec3 &n1, vec3 &n2, vec3 &n3)
     double alpha, beta, gamma;
     if (1.0 / p + 1.0 / q + 1.0 / r >= 1.0)
     {
-        p = 2;
-        q = 3;
-        r = 7;
+        p = 4;
+        q = 4;
+        r = 4;
     }
     get_angles(p, q, r, alpha, beta, gamma);
 
@@ -50,7 +50,7 @@ void compute_triangle(int p, int q, int r, vec3 &n1, vec3 &n2, vec3 &n3)
     double c = acosh((cos(alpha) * cos(beta) + cos(gamma))/(sin(alpha) * sin(beta)));
         
     vec3 p0{0.0,0.0,1.0};
-    vec3 p1{0.0,sinh(c),cosh(c)};
+    vec3 p1{0.0,sinh(a),cosh(a)};
 
     double u=cosh(c) / tanh(a) - cosh(b) / sinh(a);
     double v=cosh(c);

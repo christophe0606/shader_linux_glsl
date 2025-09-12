@@ -11,6 +11,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
 add_executable(hyperbolic main.cpp video.cpp hyperbolic.cpp)
+add_executable(debug debug.cpp hyperbolic.cpp)
 
 target_compile_options(hyperbolic PRIVATE
   $<$<CONFIG:RelWithDebInfo>:
