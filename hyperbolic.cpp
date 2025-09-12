@@ -1,8 +1,13 @@
+#include "video.h"
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <signal.h>
+#include <cstdlib>
+#include <cstring>
 
 std::string readShaderFile(const std::string &filename)
 {
@@ -71,8 +76,86 @@ GLuint createShaderProgram(const char *vertexPath, const char *fragmentPath)
     return shaderProgram;
 }
 
-int main()
+GLuint mk_texture(int width, int height)
 {
+    GLuint tex = 0;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+
+    // For raw pixel buffers, nearest avoids filtering blur:
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // Clamp (or use GL_REPEAT if you want wraparound)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // If your rows aren’t 4-byte aligned (common with 3-channel RGB),
+    // set unpack alignment to 1 to avoid row padding issues:
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    // Allocate storage once; no data yet. Replace width/height.
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, width, height, 0,
+                 GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return tex;
+}
+
+void gl_error_callback(int c, const char *d)
+{
+    fprintf(stderr, "GLFW error %d: %s\n", c, d);
+}
+
+static volatile sig_atomic_t g_stop = 0;
+
+void on_sigint(int sig)
+{
+    (void)sig;
+    g_stop = 1;
+}
+
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    if (action == GLFW_PRESS)
+    {
+        if (key == GLFW_KEY_ESCAPE)
+        {
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
+    }
+}
+
+int width, height;
+
+int main(int argc, char **argv)
+{
+    signal(SIGINT, on_sigint);
+
+    const char *dev_name = (argc > 1) ? argv[1] : "/dev/video5";
+    int video_width = (argc > 2) ? atoi(argv[2]) : 640;
+    int video_height = (argc > 3) ? atoi(argv[3]) : 480;
+
+    enum v4l2_buf_type type;
+
+    size_t rgb_size = (size_t)video_width * video_height * 3;
+    unsigned char *rgb = (unsigned char *)malloc(rgb_size);
+
+    if (!rgb)
+    {
+        fprintf(stderr, "malloc rgb failed\n");
+        return 1;
+    }
+    memset(rgb, 0, rgb_size);
+
+    int err = init_video(dev_name, video_width, video_height, type);
+    if (err != 0)
+        return err;
+
+    
+
+    
+    glfwSetErrorCallback(gl_error_callback);
+
     if (!glfwInit())
     {
         std::cerr << "Failed to initialize GLFW" << std::endl;
@@ -83,7 +166,10 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow *window = glfwCreateWindow(800, 600, "Shader Viewer", nullptr, nullptr);
+    GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+
+    GLFWwindow *window = glfwCreateWindow(mode->width, mode->height, "Fullscreen Example", monitor, NULL);
     if (!window)
     {
         std::cerr << "Failed to create GLFW window" << std::endl;
@@ -101,9 +187,15 @@ int main()
         return -1;
     }
 
-    int width, height;
+    // Set key callback
+    glfwSetKeyCallback(window, key_callback);
+
     glfwGetFramebufferSize(window, &width, &height);
     glViewport(0, 0, width, height);
+
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow *, int w, int h)
+                                   { glViewport(0, 0, w, h); 
+                                width = w; height = h; });
 
     GLuint shaderProgram = createShaderProgram("vertex_shader.glsl", "fragment_shader.glsl");
     if (shaderProgram == 0)
@@ -113,7 +205,13 @@ int main()
         return -1;
     }
 
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
+    GLuint tex = mk_texture(video_width, video_height);
+
     GLint uColorLoc = glGetUniformLocation(shaderProgram, "uColor");
+    GLint uResolutionLoc =  glGetUniformLocation(shaderProgram, "uResolution");
+    GLint uVideoHeightLoc = glGetUniformLocation(shaderProgram, "uVideoHeight");
 
     float vertices[] = {
         // positions
@@ -143,16 +241,41 @@ int main()
     float dc = 0.1;
     double last = glfwGetTime();
 
-    while (!glfwWindowShouldClose(window))
+    while (!glfwWindowShouldClose(window) && !g_stop)
     {
         double now = glfwGetTime();
         double dt = now - last;
 
+        err = try_get_buffer(rgb, video_width, video_height);
+        if (err != 0)
+        {
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+            continue;
+        }
+
+
+
         glClear(GL_COLOR_BUFFER_BIT);
+
+        // Update texture if the buffer changed (fast path: glTexSubImage2D)
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // keep safe
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, video_width, video_height,
+                        GL_RGB, GL_UNSIGNED_BYTE, rgb);
+
+        // Bind texture unit 0 and set the sampler uniform
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, tex);
 
         glUseProgram(shaderProgram);
 
+        glUniform1i(glGetUniformLocation(shaderProgram, "uTex"), 0);
         glUniform3f(uColorLoc, 0.0f, c, 0.0f); // sets uColor = (r,g,b)
+
+        glUniform2f(uResolutionLoc, (float)width, (float)height);    GLint uVideoWidthLoc = glGetUniformLocation(shaderProgram, "uVideoWidth");
+
+        glUniform1f(uVideoWidthLoc, (float)video_width);
+        glUniform1f(uVideoHeightLoc, (float)video_height);
         if (dt > 0.1) // update color every 0.1 seconds
         {
             c += dc;
@@ -168,12 +291,18 @@ int main()
         glfwPollEvents();
     }
 
+    stop_video(type);
+
+
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
     glDeleteProgram(shaderProgram);
     glfwDestroyWindow(window);
     glfwTerminate();
+    
+
+    free(rgb);
 
     return 0;
 }
