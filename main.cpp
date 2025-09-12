@@ -210,18 +210,23 @@ int main(int argc, char **argv)
 
     GLuint tex = mk_texture(video_width, video_height);
 
-    GLint uColorLoc = glGetUniformLocation(shaderProgram, "uColor");
     GLint uResolutionLoc =  glGetUniformLocation(shaderProgram, "uResolution");
-    GLint uVideoHeightLoc = glGetUniformLocation(shaderProgram, "uVideoHeight");
+    GLint uTimeLoc = glGetUniformLocation(shaderProgram, "uTime");
 
     GLint uN1Loc = glGetUniformLocation(shaderProgram, "uN1");
     GLint uN2Loc = glGetUniformLocation(shaderProgram, "uN2");
     GLint uN3Loc = glGetUniformLocation(shaderProgram, "uN3");
     GLint uAALoc = glGetUniformLocation(shaderProgram, "uAA");
+    GLint uTextureZoomLoc = glGetUniformLocation(shaderProgram, "uTextureZoom");
 
     vec3 n1, n2, n3;
-    compute_triangle(2,4,7, n1, n2, n3);
+    float zoom = 1.0f;
+    //.compute_triangle(2,4,7, n1, n2, n3);
+    //zoom = 0.5;
+    compute_triangle(2,4,5, n1, n2, n3);
+    zoom = 1.0;
     //compute_triangle(4,4,4, n1, n2, n3);
+    //zoom = 0.5;
 
     float vertices[] = {
         // positions
@@ -280,19 +285,21 @@ int main(int argc, char **argv)
         glUseProgram(shaderProgram);
 
         glUniform1i(glGetUniformLocation(shaderProgram, "uTex"), 0);
-        glUniform3f(uColorLoc, 0.0f, c, 0.0f); // sets uColor = (r,g,b)
 
         glUniform2f(uResolutionLoc, (float)width, (float)height);    GLint uVideoWidthLoc = glGetUniformLocation(shaderProgram, "uVideoWidth");
 
         glUniform1f(uVideoWidthLoc, (float)video_width);
-        glUniform1f(uVideoHeightLoc, (float)video_height);
+        glUniform1f(uTimeLoc, (float)now);
 
         glUniform3f(uN1Loc, (float)n1.x, (float)n1.y, (float)n1.z);
         glUniform3f(uN2Loc, (float)n2.x, (float)n2.y, (float)n2.z);
         glUniform3f(uN3Loc, (float)n3.x, (float)n3.y, (float)n3.z);
 
         glUniform1i(uAALoc, 4);
+        glUniform1f(uTextureZoomLoc, (float)zoom);
 
+
+        /*
         if (dt > 0.1) // update color every 0.1 seconds
         {
             c += dc;
@@ -300,6 +307,7 @@ int main(int argc, char **argv)
                 dc = -dc; // reverse direction
             last = now;
         }
+            */
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);

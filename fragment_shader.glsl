@@ -1,5 +1,6 @@
 #version 330 core
 
+#define M_PI 3.1415926535897932384626433832795
 /*
 
 Copyright 2023 by Christophe Favergeon.
@@ -8,24 +9,26 @@ All rights reserved.
 https://www.favergeon.info/arts/2023/02/11/hyperbolic.html
 
 */
-const int NUM_ITERATIONS = 80;
+const int NUM_ITERATIONS = 40;
 const int COLOR_MODULO=2;
 
 const vec2 moebiusTranslation = vec2(0,0);
 const float moebiusAngle = 0.0;
-const int transform = 0; // 0: none, 1: strip,
-const vec4 backgroundColor = vec4(0.5,0.5,0.5,1.0);
-const vec4 edgeColor = vec4(0.0,0.0,0.0,1.0);
+const vec4 backgroundColor = vec4(0.0,0.0,0.0,1.0);
+const vec4 edgeColor = vec4(1.0,0,0,1.0);
 const vec4 tileAColor = vec4(1.0,0.0,0.0,1.0);
 const vec4 tileBColor = vec4(0.0,0.0,1.0,1.0);
-const float edgeWidth = 0.02;
+const float edgeWidth = 0.01;
 const int dualTile = 1;
+const int animationOn = 1;
+const int transform = 0; // 0: none, 1: strip,
+
 
 const int tileATexture = 1;
-const int tileBTexture = 1;
+const int tileBTexture = 0;
 
 out vec4 FragColor;  // Declare an output variable
-uniform vec3 uColor;  // our uniform
+uniform float uTime;  // our uniform
 uniform sampler2D uTex;
 uniform vec2 uResolution;
 
@@ -33,6 +36,7 @@ uniform vec3 uN1;
 uniform vec3 uN2;
 uniform vec3 uN3;
 uniform int uAA; // anti aliasing
+uniform float uTextureZoom;
 
 float hdot(const vec3 a,const vec3 b)
 {
@@ -102,6 +106,17 @@ vec2 csin(vec2 c)
     return (vec2(x,y));
 }
 
+vec2 strip(vec2 w)
+{
+    //const float beta = 0;
+    //(1+zi)/(z+1)
+    vec2 c = cexp(M_PI/2.0*w);
+    vec2 n=c-vec2(1,0);
+    vec2 d=c+vec2(1,0);
+
+    return(div(n,d));
+}
+
 vec2 mobius(const vec2 z,const vec2 b,const float angle)
 {
     
@@ -122,18 +137,16 @@ vec2 thePlane(vec2 w)
 
 vec4 iter(vec3 np1,vec3 np2,vec3 np3,
           const vec2 org,
-          const vec2 moebiusTranslation, 
-          const float moebiusAngle,
           int transform)
     {
         int nb=0;
         vec2 p=org;
         vec2 latest;
         
-        //if (transform==1)
-        //{
-        //    p = strip(p);
-        //}
+        if (transform==1)
+        {
+            p = strip(p);
+        }
        
         
         if (length(p)>1)
@@ -141,7 +154,14 @@ vec4 iter(vec3 np1,vec3 np2,vec3 np3,
             return(vec4(-1,10000.0,0.0,0.0));
         }
         
-        p = mobius(p,moebiusTranslation,radians(moebiusAngle));
+        float moebiusAngle = uTime * 5;  
+        if (moebiusAngle > 360)
+            moebiusAngle -= 360;
+        float dx = cos(2*M_PI*uTime*0.1) * 0.5;
+        if (animationOn==1)
+        {
+            p = mobius(p,vec2(dx,0),radians(moebiusAngle));
+        }
 
         vec3 ph = toHyperboloid(p);
         vec3 n = vec3(0.0);
@@ -207,7 +227,7 @@ vec4 getTexture(in vec2 refp)
    vec2 texPos = vec2(-refp.x*aspect,-refp.y)+vec2(0.5);
    // texPos by default will map texture at center of screen
    // Let's modify a little so that it is in center of tiles
-   texPos = 4*texPos + vec2(0.6,0.5);
+   texPos = uTextureZoom*4*texPos + vec2(0.6,0.5);
 
    vec3 rgb = texture(uTex, texPos).rgb;
    return(vec4(rgb,1.0));
@@ -239,7 +259,7 @@ void main()
             vec2 pos = refp + cpos;
             vec2 latest;
             
-            vec4 d = iter(uN1,uN2,uN3,pos,moebiusTranslation,moebiusAngle,transform);
+            vec4 d = iter(uN1,uN2,uN3,pos,transform);
             latest = d.zw;
 
             if (d.x < 0.0)

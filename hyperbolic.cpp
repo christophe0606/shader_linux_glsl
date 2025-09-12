@@ -7,6 +7,7 @@ https://www.favergeon.info/arts/2023/02/11/hyperbolic.html
 
 */
 
+#include <stdio.h>
 #include "hyperbolic.h"
 #include <cmath>
 
@@ -39,6 +40,8 @@ void compute_triangle(int p, int q, int r, vec3 &n1, vec3 &n2, vec3 &n3)
     double alpha, beta, gamma;
     if (1.0 / p + 1.0 / q + 1.0 / r >= 1.0)
     {
+        fprintf(stderr, "Error: not a hyperbolic triangle\n");
+        // default to (4,4,4)
         p = 4;
         q = 4;
         r = 4;
