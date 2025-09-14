@@ -5,7 +5,6 @@
 
 extern vec3 edgeColor;
 
-extern void setColor(const char* name,struct vec3*  color);
 
 extern void define_tools();
 
