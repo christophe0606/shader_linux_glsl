@@ -13,7 +13,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 add_executable(hyperbolic main.cpp video.cpp hyperbolic.cpp tools.cpp)
 add_executable(debug debug.cpp tools.cpp)
 
-add_subdirectory(../c_mcp c_mpc_build)
+add_subdirectory(c_mcp c_mpc_build)
 
 target_link_libraries(hyperbolic PUBLIC CMCP)
 target_link_libraries(debug PUBLIC CMCP)

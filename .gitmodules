@@ -1,0 +1,3 @@
+[submodule "c_mcp"]
+	path = c_mcp
+	url = git@github.com:christophe0606/c_mcp.git
