@@ -14,6 +14,10 @@ The video device can be passed as argument when launching the app:
 
 `hyperbolic /dev/video5`
 
+The app needs to read the files `fragment_shader.glsl` and `vertex_shader.glsl`. They should be in the working directory. You should run the app from the root folder otherwise the files won't be found by the app:
+
+`build\Debug\hyperbolic`
+
 The app exposes an MCP server on port 8100 and can be controlled by a LLM. Here is an example of a chat to change the settings of the hyperbolic app:
 
 
