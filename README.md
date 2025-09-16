@@ -1,6 +1,6 @@
 # README
 
-The `hyperbolic` app displays a fullscreen shader with a video texture. It is a tiling of the hyperbolic plane. 
+The `hyperbolic` app displays a fullscreen shader with a video texture coming from camera. It is a tiling of the hyperbolic plane. It can be controlled from a LLM through MCP protocol (the app is an MCP server).
 
 ![Hyperbolic screenshot](screenshot.png "Screenshot")
 
@@ -14,7 +14,7 @@ The video device can be passed as argument when launching the app:
 
 `hyperbolic /dev/video5`
 
-The app is exposing an MCP server on port 8100 and can be controlled by a LLM. Here is an example of a chat to change the settings of the hyperbolic app:
+The app exposes an MCP server on port 8100 and can be controlled by a LLM. Here is an example of a chat to change the settings of the hyperbolic app:
 
 
 ![MCP example](mcp_screenshot.png "MCP session example")
@@ -23,6 +23,16 @@ To use the app with a LLM you need:
 
 * A LLM server. The `server.sh` shows how to laumch `llama-server` from `llama.cpp` project. An Open AI API compatible server will work
 * A chat client that can talk to the open AI compatible interface and to MCP servers. For instance [Jan](https://jan.ai)
+
+Typical commands provided by the tool:
+
+* `change background to black`
+* `change edge to green`
+* `stop animation`
+* `change geometry to plane`
+* `change symmetry to 1`
+* `reset settings`
+
 
 
 ## To build 
