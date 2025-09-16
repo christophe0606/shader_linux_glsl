@@ -1,3 +1,9 @@
+// Example rendering loop using OpenGL and GLFW
+// Captures video frames from a V4L2 device and applies hyperbolic transformations
+// to create a kaleidoscopic effect using shaders.
+// Generated with help of chat GPT
+// It uses the c_mcp project to expose some
+// functions on MCP
 #include "video.h"
 
 #include <GL/glew.h>
@@ -10,7 +16,8 @@
 #include <cstring>
 #include "hyperbolic.h"
 
-extern "C" {
+extern "C"
+{
 #include "cJSON.h"
 #include "config.h"
 #include "http.h"
@@ -147,19 +154,18 @@ int main(int argc, char **argv)
 
     define_tools();
 
-    int err=0;
+    int err = 0;
 #if defined(MCP_STDIO)
-    err=init_stdio();
+    err = init_stdio();
 #else
-    err=init_http();
+    err = init_http();
 #endif
 
-   if (err != 0)
-   {
-         fprintf(stderr, "Failed to initialize MCP client\n");
-         return 1;
-   }
-
+    if (err != 0)
+    {
+        fprintf(stderr, "Failed to initialize MCP client\n");
+        return 1;
+    }
 
     enum v4l2_buf_type type;
 
@@ -177,9 +183,6 @@ int main(int argc, char **argv)
     if (err != 0)
         return err;
 
-    
-
-    
     glfwSetErrorCallback(gl_error_callback);
 
     if (!glfwInit())
@@ -235,7 +238,7 @@ int main(int argc, char **argv)
 
     GLuint tex = mk_texture(video_width, video_height);
 
-    GLint uResolutionLoc =  glGetUniformLocation(shaderProgram, "uResolution");
+    GLint uResolutionLoc = glGetUniformLocation(shaderProgram, "uResolution");
     GLint uTimeLoc = glGetUniformLocation(shaderProgram, "uTime");
 
     GLint uN1Loc = glGetUniformLocation(shaderProgram, "uN1");
@@ -244,15 +247,12 @@ int main(int argc, char **argv)
     GLint uAALoc = glGetUniformLocation(shaderProgram, "uAA");
     GLint uTextureZoomLoc = glGetUniformLocation(shaderProgram, "uTextureZoom");
     GLint uEdgeColorLoc = glGetUniformLocation(shaderProgram, "uEdgeColor");
+    GLint uBackgroundColor = glGetUniformLocation(shaderProgram, "uBackgroundColor");
+    GLint uGeometryType = glGetUniformLocation(shaderProgram, "uGeometryType");
+    GLint uAnimationOn = glGetUniformLocation(shaderProgram, "uAnimationOn");
 
     vec3 n1, n2, n3;
     float zoom = 1.0f;
-    //.compute_triangle(2,4,7, n1, n2, n3);
-    //zoom = 0.5;
-    compute_triangle(2,4,5, n1, n2, n3);
-    zoom = 1.0;
-    //compute_triangle(4,4,4, n1, n2, n3);
-    //zoom = 0.5;
 
     float vertices[] = {
         // positions
@@ -300,8 +300,6 @@ int main(int argc, char **argv)
         process_http();
 #endif
 
-
-
         glClear(GL_COLOR_BUFFER_BIT);
 
         // Update texture if the buffer changed (fast path: glTexSubImage2D)
@@ -318,10 +316,26 @@ int main(int argc, char **argv)
 
         glUniform1i(glGetUniformLocation(shaderProgram, "uTex"), 0);
 
-        glUniform2f(uResolutionLoc, (float)width, (float)height);    GLint uVideoWidthLoc = glGetUniformLocation(shaderProgram, "uVideoWidth");
+        glUniform2f(uResolutionLoc, (float)width, (float)height);
+        GLint uVideoWidthLoc = glGetUniformLocation(shaderProgram, "uVideoWidth");
 
         glUniform1f(uVideoWidthLoc, (float)video_width);
         glUniform1f(uTimeLoc, (float)now);
+
+        switch (symmetry)
+        {
+        case 1:
+            compute_triangle(2, 4, 7, n1, n2, n3);
+            zoom = 0.5;
+            break;
+        case 2:
+            compute_triangle(4, 4, 4, n1, n2, n3);
+            zoom = 0.5;
+            break;
+        default:
+            compute_triangle(2, 4, 5, n1, n2, n3);
+            zoom = 1.0;
+        }
 
         glUniform3f(uN1Loc, (float)n1.x, (float)n1.y, (float)n1.z);
         glUniform3f(uN2Loc, (float)n2.x, (float)n2.y, (float)n2.z);
@@ -331,6 +345,9 @@ int main(int argc, char **argv)
         glUniform1f(uTextureZoomLoc, (float)zoom);
 
         glUniform3f(uEdgeColorLoc, (float)edgeColor.x, (float)edgeColor.y, (float)edgeColor.z);
+        glUniform3f(uBackgroundColor, (float)backgroundColor.x, (float)backgroundColor.y, (float)backgroundColor.z);
+        glUniform1i(uGeometryType, geometryType);
+        glUniform1i(uAnimationOn, animationOn);
         /*
         if (dt > 0.1) // update color every 0.1 seconds
         {
@@ -356,14 +373,12 @@ int main(int argc, char **argv)
     end_http();
 #endif
 
-
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
     glDeleteProgram(shaderProgram);
     glfwDestroyWindow(window);
     glfwTerminate();
-    
 
     free(rgb);
 

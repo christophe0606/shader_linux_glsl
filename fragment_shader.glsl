@@ -14,17 +14,14 @@ const int COLOR_MODULO=2;
 
 const vec2 moebiusTranslation = vec2(0,0);
 const float moebiusAngle = 0.0;
-const vec4 backgroundColor = vec4(0.0,0.0,0.0,1.0);
 const vec4 tileAColor = vec4(1.0,0.0,0.0,1.0);
 const vec4 tileBColor = vec4(0.0,0.0,1.0,1.0);
 const float edgeWidth = 0.01;
 const int dualTile = 1;
-const int animationOn = 1;
-const int transform = 0; // 0: none, 1: strip,
 
 
 const int tileATexture = 1;
-const int tileBTexture = 0;
+const int tileBTexture = 1;
 
 out vec4 FragColor;  // Declare an output variable
 uniform float uTime;  // our uniform
@@ -38,6 +35,10 @@ uniform int uAA; // anti aliasing
 uniform float uTextureZoom;
 
 uniform vec3 uEdgeColor;
+uniform vec3 uBackgroundColor;
+
+uniform int uGeometryType;
+uniform int uAnimationOn;
 
 float hdot(const vec3 a,const vec3 b)
 {
@@ -137,14 +138,13 @@ vec2 thePlane(vec2 w)
 }
 
 vec4 iter(vec3 np1,vec3 np2,vec3 np3,
-          const vec2 org,
-          int transform)
+          const vec2 org)
     {
         int nb=0;
         vec2 p=org;
         vec2 latest;
         
-        if (transform==1)
+        if (uGeometryType==1)
         {
             p = strip(p);
         }
@@ -159,7 +159,7 @@ vec4 iter(vec3 np1,vec3 np2,vec3 np3,
         if (moebiusAngle > 360)
             moebiusAngle -= 360;
         float dx = cos(2*M_PI*uTime*0.1) * 0.5;
-        if (animationOn==1)
+        if (uAnimationOn==1)
         {
             p = mobius(p,vec2(dx,0),radians(moebiusAngle));
         }
@@ -260,12 +260,12 @@ void main()
             vec2 pos = refp + cpos;
             vec2 latest;
             
-            vec4 d = iter(uN1,uN2,uN3,pos,transform);
+            vec4 d = iter(uN1,uN2,uN3,pos);
             latest = d.zw;
 
             if (d.x < 0.0)
             {
-                total += backgroundColor;
+                total += vec4(uBackgroundColor,1.0);
             }
             else if ((abs(d.y) <= edgeWidth))
             {
@@ -281,7 +281,7 @@ void main()
                   {
                      if (tileATexture==1)
                      {
-                         col = getTexture(latest);
+                         col = 0.5*tileAColor + 0.5*getTexture(latest);
                      }
                      else 
                      {
@@ -293,7 +293,7 @@ void main()
                   {
                      if (tileBTexture==1)
                      {
-                        col = getTexture(latest);
+                        col = 0.5*tileBColor + 0.5*getTexture(latest);
                      } 
                      else 
                      {

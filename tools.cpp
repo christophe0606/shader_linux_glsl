@@ -1,3 +1,8 @@
+/*
+
+Definition of the MCP tools exposed by the application.
+
+*/
 #include "config.h"
 extern "C" {
 #include "mcp.h"
@@ -10,8 +15,7 @@ extern "C" {
 #include <string.h>
 
 vec3 edgeColor;
-vec3 tileAColor;
-vec3 tileBColor;
+vec3 backgroundColor;
 float thickness;
 int geometryType;
 int symmetry;
@@ -65,22 +69,115 @@ int setColor(const char* name,vec3*  color)
 void setDefaults()
 {
     (void)setColor("black",&edgeColor);
-    (void)setColor("red",&tileAColor);
-    (void)setColor("blue",&tileBColor);
+    (void)setColor("black",&backgroundColor);
     thickness=0.01;
     geometryType=0;
     symmetry=0;
     animationOn=1;
 }
 
-static cJSON *tool_set_color_of_setting(cJSON *args)
+static cJSON *tool_reset(cJSON *args)
 {
-    const cJSON *object = cJSON_GetObjectItemCaseSensitive(args, "object");
+    setDefaults();
+    return create_result_text("reset to defaults");
+}
+
+
+static cJSON *tool_set_animation(cJSON *args)
+{
+    const cJSON *status = cJSON_GetObjectItemCaseSensitive(args, "on");
+    const int error = cJSON_IsBool(status) ? 0 : 1;
+    const cJSON_bool animaStatus = cJSON_IsBool(status) && cJSON_IsTrue(status);
+    cJSON *res;
+
+    if (!error && animaStatus)
+    {
+        animationOn=1;
+        res=create_result_text("animation started");
+
+    }
+    else if (!error && !animaStatus)
+    {
+        animationOn=0;
+        res=create_result_text("animation stopped");
+    }
+    else 
+    {
+        res=create_result_text("unknown value");
+    }
+
+    return res;
+}
+
+static cJSON *tool_set_geometry(cJSON *args)
+{
+    const cJSON *status = cJSON_GetObjectItemCaseSensitive(args, "geometry");
+    const char *geom = (cJSON_IsString(status) && status->valuestring) ? status->valuestring : "";
+    cJSON *res;
+
+    if (strcmp(geom,"disk")==0)
+    {
+        geometryType=0;
+        res=create_result_text("geometry changed to disk");
+
+    }
+    else if (strcmp(geom,"plane")==0)
+    {
+        geometryType=1;
+        res=create_result_text("geometry changed to plane");
+    }
+    else 
+    {
+        res=create_result_text("unknown value");
+    }
+
+    return res;
+}
+
+static cJSON *tool_set_symmetry(cJSON *args)
+{
+    const cJSON *status = cJSON_GetObjectItemCaseSensitive(args, "symmetry");
+    const int sym = (cJSON_IsNumber(status) && status->valueint) ? status->valueint : 0;
+    cJSON *res;
+
+    if ((sym >= 0) && (sym < 3))
+    {
+        symmetry=sym;
+        res=create_result_text("symmetry changed");
+
+    }
+    else 
+    {
+        res=create_result_text("unknown value");
+    }
+
+    return res;
+}
+
+static cJSON *tool_set_edge_color(cJSON *args)
+{
     const cJSON *color = cJSON_GetObjectItemCaseSensitive(args, "color");
     const char *col = (cJSON_IsString(color) && color->valuestring) ? color->valuestring : "";
-    const char *obj = (cJSON_IsString(object) && object->valuestring) ? object->valuestring : "";
 
     int err = setColor(col,&edgeColor);
+    cJSON *res;
+    if (err)
+    {
+      res=create_result_text("unknown color");
+    }
+    else
+    {
+      res=create_result_text("color changed");
+    }
+    return res;
+}
+
+static cJSON *tool_set_background_color(cJSON *args)
+{
+    const cJSON *color = cJSON_GetObjectItemCaseSensitive(args, "color");
+    const char *col = (cJSON_IsString(color) && color->valuestring) ? color->valuestring : "";
+
+    int err = setColor(col,&backgroundColor);
     cJSON *res;
     if (err)
     {
@@ -121,17 +218,37 @@ cJSON *handle_tools_call(cJSON *id, cJSON *params)
         return err(id, MCP_INVALID_PARAMS, "Missing arguments");
 
     cJSON *result = NULL;
-    if (strcmp(name->valuestring, "colorSetting") == 0)
+    if (strcmp(name->valuestring, "edgeColor") == 0)
     {
-        result = tool_set_color_of_setting((cJSON *)arguments);
+        result = tool_set_edge_color((cJSON *)arguments);
     }
-    else if (strcmp(name->valuestring, "add") == 0)
+    else if (strcmp(name->valuestring, "backgroundColor") == 0)
     {
-        result = tool_add((cJSON *)arguments);
+        result = tool_set_background_color((cJSON *)arguments);
     }
+    else if (strcmp(name->valuestring, "animationOn") == 0)
+    {
+        result = tool_set_animation((cJSON *)arguments);
+    }
+    else if (strcmp(name->valuestring, "geometryType") == 0)
+    {
+        result = tool_set_geometry((cJSON *)arguments);
+    }
+    else if (strcmp(name->valuestring, "symmetryType") == 0)
+    {
+        result = tool_set_symmetry((cJSON *)arguments);
+    }
+    else if (strcmp(name->valuestring, "reset") == 0)
+    {
+        result = tool_reset((cJSON *)arguments);
+    }
+    //else if (strcmp(name->valuestring, "add") == 0)
+    //{
+    //    result = tool_add((cJSON *)arguments);
+    //}
     else
     {
-        return err(id, -32601, "Unknown tool");
+        return err(id, MCP_METHOD_NOT_FOUND, "Unknown tool");
     }
     return ok(id, result);
 }
@@ -141,14 +258,30 @@ void define_tools()
 
     setDefaults();
 
-    struct tool *colorTool = add_tool("colorSetting", "Set color of object");
-    add_argument(colorTool, 
+    struct tool *tool = add_tool("edgeColor", "Set color of edges");
+    add_argument(tool, 
         "color", TYPE_STR, "Color name (red, green, blue, white,black,gray)");
-    add_argument(colorTool, 
-        "object", TYPE_STR, "Object (edge,background,first tile,second tile)");
 
-    struct tool *addTool = add_tool("add", "Add two numbers");
+    tool = add_tool("backgroundColor", "Set color of background");
+    add_argument(tool, 
+        "color", TYPE_STR, "Color name (red, green, blue, white,black,gray)");
+
+    tool = add_tool("animationOn", "start or stop animation");
+    add_argument(tool, 
+        "on", TYPE_BOOL, "Animation status");
+
+    tool = add_tool("geometryType", "Type of geometry");
+    add_argument(tool, 
+        "geometry", TYPE_STR, "Type of geometry (disk or plane)");
+
+    tool = add_tool("symmetryType", "Set the symmetry type");
+    add_argument(tool, 
+        "symmetry", TYPE_INT, "Type of symmetry (0,1,2)");
+
+    tool = add_tool("reset", "Reset defaukt settings");
+    
+    //struct tool *addTool = add_tool("add", "Add two numbers");
     // Add arguments in reverse order (linked list)
-    add_argument(addTool, "b", TYPE_FLOAT, "Second number");
-    add_argument(addTool, "a", TYPE_FLOAT, "First number");
+    //add_argument(addTool, "b", TYPE_FLOAT, "Second number");
+    //add_argument(addTool, "a", TYPE_FLOAT, "First number");
 }
